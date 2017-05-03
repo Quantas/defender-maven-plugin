@@ -10,6 +10,7 @@ import org.apache.maven.plugins.annotations.Parameter;
 import org.apache.maven.plugins.annotations.ResolutionScope;
 import org.apache.maven.project.MavenProject;
 import org.springframework.http.HttpEntity;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpMethod;
 import org.springframework.http.ResponseEntity;
 import org.springframework.http.converter.HttpMessageConverter;
@@ -65,7 +66,11 @@ public class ProtectMojo extends AbstractMojo {
         build.setApp(app);
         build.setArtifacts(defenderArtifacts);
 
-        final HttpEntity<DefenderBuild> requestEntity = new HttpEntity<>(build);
+        final HttpHeaders headers = new HttpHeaders();
+        headers.set("X-DEFENDER-TYPE", "MAVEN");
+
+        final HttpEntity<DefenderBuild> requestEntity = new HttpEntity<>(build, headers);
+
 
         final ResponseEntity<Object> response = restTemplate.exchange("http://localhost:8080/api/protect", HttpMethod.POST, requestEntity, Object.class);
         if (response.hasBody()) {
