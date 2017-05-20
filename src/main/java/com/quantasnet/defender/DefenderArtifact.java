@@ -6,6 +6,12 @@ public class DefenderArtifact {
     private String groupId;
     private String artifactId;
     private String version;
+
+    private String description;
+    private String license;
+    private String url;
+    private String repository;
+
     private String scope;
     private boolean transitive;
 
@@ -31,6 +37,38 @@ public class DefenderArtifact {
 
     public void setVersion(String version) {
         this.version = version;
+    }
+
+    public String getDescription() {
+        return description;
+    }
+
+    public void setDescription(String description) {
+        this.description = description;
+    }
+
+    public String getLicense() {
+        return license;
+    }
+
+    public void setLicense(String license) {
+        this.license = license;
+    }
+
+    public String getUrl() {
+        return url;
+    }
+
+    public void setUrl(String url) {
+        this.url = url;
+    }
+
+    public String getRepository() {
+        return repository;
+    }
+
+    public void setRepository(String repository) {
+        this.repository = repository;
     }
 
     public String getScope() {

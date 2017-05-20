@@ -2,6 +2,7 @@ package com.quantasnet.defender;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import org.apache.maven.artifact.Artifact;
+import org.apache.maven.model.License;
 import org.apache.maven.plugin.AbstractMojo;
 import org.apache.maven.plugin.MojoExecutionException;
 import org.apache.maven.plugins.annotations.LifecyclePhase;
@@ -60,6 +61,16 @@ public class ProtectMojo extends AbstractMojo {
         app.setGroupId(project.getGroupId());
         app.setArtifactId(project.getArtifactId());
         app.setVersion(project.getVersion());
+
+        app.setDescription(project.getDescription());
+
+        final List<License> licenses = project.getLicenses();
+        if (null != licenses && !licenses.isEmpty()) {
+            app.setLicense(licenses.get(0).getName());
+        }
+
+        app.setUrl(project.getUrl());
+        app.setRepository(project.getScm().getUrl());
 
         final DefenderBuild build = new DefenderBuild();
         build.setUser(System.getProperty("user.name"));
