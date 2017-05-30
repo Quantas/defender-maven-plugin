@@ -1,6 +1,9 @@
 package com.quantasnet.defender;
 
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.quantasnet.defender.response.Build;
+import com.quantasnet.defender.response.BuildDependency;
 import org.apache.maven.artifact.Artifact;
 import org.apache.maven.model.License;
 import org.apache.maven.plugin.AbstractMojo;
@@ -35,6 +38,8 @@ public class ProtectMojo extends AbstractMojo {
         restTemplate = new RestTemplate();
 
         final ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
         final MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter(objectMapper);
         final List<HttpMessageConverter<?>> converters = new ArrayList<>();
         converters.add(converter);
@@ -70,7 +75,10 @@ public class ProtectMojo extends AbstractMojo {
         }
 
         app.setUrl(project.getUrl());
-        app.setRepository(project.getScm().getUrl());
+
+        if (null != project.getScm()) {
+            app.setRepository(project.getScm().getUrl());
+        }
 
         final DefenderBuild build = new DefenderBuild();
         build.setUser(System.getProperty("user.name"));
@@ -83,9 +91,21 @@ public class ProtectMojo extends AbstractMojo {
         final HttpEntity<DefenderBuild> requestEntity = new HttpEntity<>(build, headers);
 
 
-        final ResponseEntity<Object> response = restTemplate.exchange("http://localhost:8080/api/protect", HttpMethod.POST, requestEntity, Object.class);
+        final ResponseEntity<Build> response = restTemplate.exchange("http://localhost:8080/api/protect", HttpMethod.POST, requestEntity, Build.class);
         if (response.hasBody()) {
-            getLog().info("Response: " + response.getBody());
+            final Build buildResponse = response.getBody();
+
+            if (!buildResponse.isPassed()) {
+                // Build failed
+                getLog().error("The build could not proceed due to the following dependencies:");
+
+                for (BuildDependency buildDependency : buildResponse.getBuildDependencies()) {
+                    if (!buildDependency.getDependencyStatus().isApproved()) {
+                        getLog().error(buildDependency.getDependency().getGroupId() + ':' + buildDependency.getDependency().getArtifactId() + ':' + buildDependency.getDependency().getVersion() + " --- " + buildDependency.getDependencyStatus().getStatus());
+                    }
+                }
+                throw new MojoExecutionException("DEFENDER PREVENTED BUILD DUE TO FAILURES!!!");
+            }
         } else {
             throw new MojoExecutionException("Build Failed");
         }
