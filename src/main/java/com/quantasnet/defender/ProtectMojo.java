@@ -21,6 +21,9 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
+import javax.net.ssl.*;
+import java.security.cert.CertificateException;
+import java.security.cert.X509Certificate;
 import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.List;
@@ -35,6 +38,9 @@ public class ProtectMojo extends AbstractMojo {
     private final RestTemplate restTemplate;
 
     public ProtectMojo() {
+        // TODO make this optional
+        trustSelfSignedSSL();
+
         restTemplate = new RestTemplate();
 
         final ObjectMapper objectMapper = new ObjectMapper();
@@ -91,7 +97,7 @@ public class ProtectMojo extends AbstractMojo {
         final HttpEntity<DefenderBuild> requestEntity = new HttpEntity<>(build, headers);
 
 
-        final ResponseEntity<Build> response = restTemplate.exchange("http://localhost:8080/api/protect", HttpMethod.POST, requestEntity, Build.class);
+        final ResponseEntity<Build> response = restTemplate.exchange("https://defender.quantasnet.net/api/protect", HttpMethod.POST, requestEntity, Build.class);
         if (response.hasBody()) {
             final Build buildResponse = response.getBody();
 
@@ -110,5 +116,27 @@ public class ProtectMojo extends AbstractMojo {
             throw new MojoExecutionException("Build Failed");
         }
 
+    }
+
+    public static void trustSelfSignedSSL() {
+        try {
+            SSLContext ctx = SSLContext.getInstance("TLS");
+            X509TrustManager tm = new X509TrustManager() {
+
+                public void checkClientTrusted(X509Certificate[] xcs, String string) throws CertificateException {
+                }
+
+                public void checkServerTrusted(X509Certificate[] xcs, String string) throws CertificateException {
+                }
+
+                public X509Certificate[] getAcceptedIssuers() {
+                    return null;
+                }
+            };
+            ctx.init(null, new TrustManager[]{tm}, null);
+            SSLContext.setDefault(ctx);
+        } catch (Exception ex) {
+            ex.printStackTrace();
+        }
     }
 }
