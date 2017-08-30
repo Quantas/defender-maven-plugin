@@ -21,7 +21,9 @@ import org.springframework.http.converter.HttpMessageConverter;
 import org.springframework.http.converter.json.MappingJackson2HttpMessageConverter;
 import org.springframework.web.client.RestTemplate;
 
-import javax.net.ssl.*;
+import javax.net.ssl.SSLContext;
+import javax.net.ssl.TrustManager;
+import javax.net.ssl.X509TrustManager;
 import java.security.cert.CertificateException;
 import java.security.cert.X509Certificate;
 import java.util.ArrayList;
@@ -29,30 +31,26 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 
+/**
+ *
+ */
 @Mojo(name = "protect", defaultPhase = LifecyclePhase.PROCESS_RESOURCES, requiresDependencyCollection = ResolutionScope.COMPILE_PLUS_RUNTIME, requiresDependencyResolution = ResolutionScope.COMPILE_PLUS_RUNTIME)
 public class ProtectMojo extends AbstractMojo {
 
     @Parameter(defaultValue = "${project}", required = true, readonly = true)
     private MavenProject project;
 
-    private final RestTemplate restTemplate;
+    @Parameter(defaultValue = "false", property = "trust-self-signed")
+    private String trustSelfSigned;
 
-    public ProtectMojo() {
-        // TODO make this optional
-        trustSelfSignedSSL();
-
-        restTemplate = new RestTemplate();
-
-        final ObjectMapper objectMapper = new ObjectMapper();
-        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
-
-        final MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter(objectMapper);
-        final List<HttpMessageConverter<?>> converters = new ArrayList<>();
-        converters.add(converter);
-        restTemplate.setMessageConverters(converters);
+    @Override
+    public void execute() throws MojoExecutionException {
+        final DefenderBuild build = createDefenderBuild();
+        submitBuild(build);
     }
 
-    public void execute() throws MojoExecutionException {
+    @SuppressWarnings("unchecked")
+    private DefenderBuild createDefenderBuild() {
         final Set<Artifact> artifacts = project.getArtifacts();
 
         final Set<DefenderArtifact> defenderArtifacts = new HashSet<>();
@@ -72,7 +70,6 @@ public class ProtectMojo extends AbstractMojo {
         app.setGroupId(project.getGroupId());
         app.setArtifactId(project.getArtifactId());
         app.setVersion(project.getVersion());
-
         app.setDescription(project.getDescription());
 
         final List<License> licenses = project.getLicenses();
@@ -90,14 +87,16 @@ public class ProtectMojo extends AbstractMojo {
         build.setUser(System.getProperty("user.name"));
         build.setApp(app);
         build.setArtifacts(defenderArtifacts);
+        return build;
+    }
 
+    private void submitBuild(DefenderBuild build) throws MojoExecutionException {
         final HttpHeaders headers = new HttpHeaders();
         headers.set("X-DEFENDER-TYPE", "MAVEN");
 
         final HttpEntity<DefenderBuild> requestEntity = new HttpEntity<>(build, headers);
 
-
-        final ResponseEntity<Build> response = restTemplate.exchange("https://defender.quantasnet.net/api/protect", HttpMethod.POST, requestEntity, Build.class);
+        final ResponseEntity<Build> response = createRestTemplate().exchange("https://defender.quantasnet.net/api/protect", HttpMethod.POST, requestEntity, Build.class);
         if (response.hasBody()) {
             final Build buildResponse = response.getBody();
 
@@ -115,28 +114,51 @@ public class ProtectMojo extends AbstractMojo {
         } else {
             throw new MojoExecutionException("Build Failed");
         }
-
     }
 
-    public static void trustSelfSignedSSL() {
-        try {
-            SSLContext ctx = SSLContext.getInstance("TLS");
-            X509TrustManager tm = new X509TrustManager() {
+    private RestTemplate createRestTemplate() {
 
+        if (Boolean.valueOf(trustSelfSigned)) {
+            trustSelfSignedSSL();
+        }
+
+        final RestTemplate restTemplate = new RestTemplate();
+
+        final ObjectMapper objectMapper = new ObjectMapper();
+        objectMapper.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+
+        final MappingJackson2HttpMessageConverter converter = new MappingJackson2HttpMessageConverter(objectMapper);
+        final List<HttpMessageConverter<?>> converters = new ArrayList<>();
+        converters.add(converter);
+        restTemplate.setMessageConverters(converters);
+
+        return restTemplate;
+    }
+
+    private void trustSelfSignedSSL() {
+        try {
+            final SSLContext ctx = SSLContext.getInstance("TLS");
+
+            final X509TrustManager tm = new X509TrustManager() {
+
+                @Override
                 public void checkClientTrusted(X509Certificate[] xcs, String string) throws CertificateException {
                 }
 
+                @Override
                 public void checkServerTrusted(X509Certificate[] xcs, String string) throws CertificateException {
                 }
 
+                @Override
                 public X509Certificate[] getAcceptedIssuers() {
                     return null;
                 }
             };
-            ctx.init(null, new TrustManager[]{tm}, null);
+
+            ctx.init(null, new TrustManager[]{ tm }, null);
             SSLContext.setDefault(ctx);
-        } catch (Exception ex) {
-            ex.printStackTrace();
+        } catch (final Exception ex) {
+            getLog().error(ex);
         }
     }
 }
