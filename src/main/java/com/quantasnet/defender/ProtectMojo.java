@@ -40,6 +40,9 @@ public class ProtectMojo extends AbstractMojo {
     @Parameter(defaultValue = "${project}", required = true, readonly = true)
     private MavenProject project;
 
+    @Parameter(required = true, property = "defender-host")
+    private String defenderHost;
+
     @Parameter(defaultValue = "false", property = "trust-self-signed")
     private String trustSelfSigned;
 
@@ -96,7 +99,7 @@ public class ProtectMojo extends AbstractMojo {
 
         final HttpEntity<DefenderBuild> requestEntity = new HttpEntity<>(build, headers);
 
-        final ResponseEntity<Build> response = createRestTemplate().exchange("https://defender.quantasnet.net/api/protect", HttpMethod.POST, requestEntity, Build.class);
+        final ResponseEntity<Build> response = createRestTemplate().exchange(defenderHost + "/api/protect", HttpMethod.POST, requestEntity, Build.class);
         if (response.hasBody()) {
             final Build buildResponse = response.getBody();
 
